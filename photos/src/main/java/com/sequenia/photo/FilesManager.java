@@ -119,11 +119,33 @@ public class FilesManager {
             // DownloadsProvider
             else if (isDownloadsDocument(uri)) {
 
-                final String id = DocumentsContract.getDocumentId(uri);
-                final Uri contentUri = ContentUris.withAppendedId(
-                        Uri.parse("content://downloads/public_downloads"), Long.valueOf(id));
+                String[] contentUriPrefixesToTry = new String[]{
+                        "content://downloads/public_downloads",
+                        "content://downloads/my_downloads",
+                        "content://downloads/all_downloads"
+                };
 
-                return getDataColumn(context, contentUri, null, null);
+                String id = DocumentsContract.getDocumentId(uri);
+
+                if (id.startsWith("raw:")) {
+                    return id.replaceFirst("raw:", "");
+                }
+
+                for (String contentUriPrefix : contentUriPrefixesToTry) {
+                    Uri contentUri = ContentUris.withAppendedId(Uri.parse(contentUriPrefix),
+                            Long.valueOf(id));
+                    try {
+                        String path = getDataColumn(context, contentUri,
+                                null, null);
+                        if (path != null) {
+                            return path;
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+
+                throw new GalleryDownloadsException("Can't get file from downloads");
             }
             // MediaProvider
             else if (isMediaDocument(uri)) {
