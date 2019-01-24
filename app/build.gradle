@@ -10,8 +10,8 @@ android {
         applicationId "ru.sequenia.photos_sample"
         minSdkVersion 15
         targetSdkVersion 27
-        versionCode 6
-        versionName "2.4"
+        versionCode 7
+        versionName "2.5"
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
     }
     buildTypes {
@@ -36,6 +36,7 @@ dependencies {
 
     // Вспомогательные библиотеки для примера
     implementation 'com.github.foxaice:NavigationRouter:v0.1-alpha'
+    implementation 'com.squareup.picasso:picasso:2.5.2'
 
     testCompile 'junit:junit:4.12'
     compile project(path: ':photos')

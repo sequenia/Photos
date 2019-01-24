@@ -10,6 +10,7 @@
     <!-- Тексты ошибок -->
     <string name="take_photo_path_null">Не указан путь к фотографии</string>
     <string name="take_photo_path_not_find">По указанному пути не нашлось фотографии</string>
+    <string name="take_photo_out_of_memory_error">Недостаточно памяти, перезагрузите приложение</string>
 
     <string name="add_photo">Добавить фотографию</string>
 </resources>

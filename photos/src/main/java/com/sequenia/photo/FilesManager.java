@@ -4,15 +4,22 @@ import android.content.ContentUris;
 import android.content.Context;
 import android.database.Cursor;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Environment;
+import android.os.ParcelFileDescriptor;
 import android.provider.DocumentsContract;
 import android.provider.MediaStore;
 
 import java.io.File;
+import java.io.FileDescriptor;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
@@ -26,6 +33,7 @@ public class FilesManager {
 
     /**
      * Создает файл для записи фотографии
+     *
      * @return возвращает созданный файл
      * @throws IOException
      */
@@ -33,15 +41,16 @@ public class FilesManager {
         return createFile(createOpenDirectory(context), "jpg");
     }
 
-    public static File createJPGFileInCloseDirectory(Context context) throws IOException{
+    public static File createJPGFileInCloseDirectory(Context context) throws IOException {
         return createFile(createCloseDirectory(context), "jpg");
     }
 
     /**
      * Создание закрытой директории (доступ только для приложения)
+     *
      * @return - директория
      */
-    public static File createCloseDirectory(Context context){
+    public static File createCloseDirectory(Context context) {
         return isExternalStorageWritable() ? context.getExternalFilesDir(Environment.DIRECTORY_PICTURES)
                 : context.getFilesDir();
     }
@@ -49,9 +58,10 @@ public class FilesManager {
     /**
      * Создание открытой директории
      * (файлы отображаются в проводниках)
+     *
      * @return - директория
      */
-    public static File createOpenDirectory(Context context){
+    public static File createOpenDirectory(Context context) {
         return isExternalStorageWritable() ? Environment.getExternalStoragePublicDirectory(
                 Environment.DIRECTORY_PICTURES) :
                 context.getDir(Environment.DIRECTORY_PICTURES, Context.MODE_PRIVATE);
@@ -59,8 +69,9 @@ public class FilesManager {
 
     /**
      * Создание файла в указанной директории и с указанным расширением
+     *
      * @param storageDir - директория
-     * @param exp - расширение
+     * @param exp        - расширение
      * @return - созданный файл
      * @throws IOException
      */
@@ -79,6 +90,7 @@ public class FilesManager {
 
     /**
      * Запись битмапа в файл
+     *
      * @param base - битмап, который нужно сохранить в файле
      * @throws IOException
      */
@@ -100,7 +112,7 @@ public class FilesManager {
     }
 
     // Получает ссылку на файл по уришке на курсор
-    public static String getPath(Context context, Uri uri) {
+    private static String getPath(Context context, Uri uri) throws IOException, OutOfMemoryError {
 
         final boolean isKitKat = Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT;
 
@@ -145,7 +157,8 @@ public class FilesManager {
                     }
                 }
 
-                throw new GalleryDownloadsException("Can't get file from downloads");
+                // Попробуем перекопировать в другую директорию файл
+                return copyFile(context, uri);
             }
             // MediaProvider
             else if (isMediaDocument(uri)) {
@@ -163,7 +176,7 @@ public class FilesManager {
                 }
 
                 final String selection = "_id=?";
-                final String[] selectionArgs = new String[] {
+                final String[] selectionArgs = new String[]{
                         split[1]
                 };
 
@@ -172,28 +185,94 @@ public class FilesManager {
         }
         // MediaStore (and general)
         else if ("content".equalsIgnoreCase(uri.getScheme())) {
-            return getDataColumn(context, uri, null, null);
+            String path = null;
+            try {
+                path = getDataColumn(context, uri, null, null);
+            } catch (IllegalArgumentException e) {
+                e.printStackTrace();
+            }
+            return path != null ? path : copyFile(context, uri);
         }
         // File
         else if ("file".equalsIgnoreCase(uri.getScheme())) {
             return uri.getPath();
         }
 
-        return null;
+        // Попробуем перекопировать в другую директорию файл
+        return copyFile(context, uri);
+    }
+
+    // Получает ссылку на файл по уришке на курсор
+    public static void getPath(final Context context, final Uri uri, final GetPathCallback callback) {
+        new AsyncTask<Uri, Void, String>() {
+            @Override
+            protected String doInBackground(Uri... uris) {
+                try {
+                    return getPath(context, uris[0]);
+                } catch (OutOfMemoryError e) {
+                    return OutOfMemoryError.class.getName();
+                } catch (IOException e) {
+                    return IOException.class.getName() + e.getMessage();
+                }
+            }
+
+            @Override
+            protected void onPostExecute(String result) {
+                super.onPostExecute(result);
+                if (result.startsWith(OutOfMemoryError.class.getName())) {
+                    callback.onOutOfMemoryError();
+                } else if (result.startsWith(IOException.class.getName())) {
+                    callback.onError(result);
+                } else {
+                    callback.onSuccess(result);
+                }
+            }
+        }.execute(uri);
+    }
+
+    /**
+     * Копирует файл в новой директории
+     *
+     * @param context - контекст
+     * @param uri     - ури на файл
+     * @return - путь к файлу
+     */
+    private static String copyFile(Context context, Uri uri) throws IOException, OutOfMemoryError {
+        ParcelFileDescriptor file = context.getContentResolver().openFileDescriptor(uri, "r");
+        File dbFile = createJPGFileInOpenDirectory(context);
+
+        if (file == null) {
+            return null;
+        }
+
+        InputStream fileStream = new FileInputStream(file.getFileDescriptor());
+        OutputStream newDatabase = new FileOutputStream(dbFile);
+
+        byte[] buffer = new byte[1024];
+        int length;
+
+        while ((length = fileStream.read(buffer)) > 0) {
+            newDatabase.write(buffer, 0, length);
+        }
+
+        newDatabase.flush();
+        fileStream.close();
+        newDatabase.close();
+        return dbFile.getAbsolutePath();
     }
 
     /**
      * Get the value of the data column for this Uri. This is useful for
      * MediaStore Uris, and other file-based ContentProviders.
      *
-     * @param context The context.
-     * @param uri The Uri to query.
-     * @param selection (Optional) Filter used in the query.
+     * @param context       The context.
+     * @param uri           The Uri to query.
+     * @param selection     (Optional) Filter used in the query.
      * @param selectionArgs (Optional) Selection arguments used in the query.
      * @return The value of the _data column, which is typically a file path.
      */
     public static String getDataColumn(Context context, Uri uri, String selection,
-                                       String[] selectionArgs) {
+                                       String[] selectionArgs) throws IllegalArgumentException {
 
         Cursor cursor = null;
         final String column = "_data";
@@ -218,24 +297,27 @@ public class FilesManager {
     /**
      * Проверка файла на существование и
      * корректность информации
+     *
      * @param uri - путь к файлу
      * @return - true - файл существует и информация в нем корректна
      */
-    public static boolean checkedFile(Context context, Uri uri){
+    public static boolean checkedFile(Context context, Uri uri)
+            throws OutOfMemoryError, IOException {
         return checkedFile(getPath(context, uri));
     }
 
     /**
      * Проверка файла на существование и
      * корректность информации
+     *
      * @param path - путь к файлу
      * @return - true - файл существует и информация в нем корректна
      */
-    public static boolean checkedFile(String path){
-        if(path != null) {
+    public static boolean checkedFile(String path) {
+        if (path != null) {
             File file = new File(path);
             return file.exists() && file.length() > 0;
-        }else{
+        } else {
             return false;
         }
     }
@@ -244,9 +326,9 @@ public class FilesManager {
      * Удаляем все содержимое каталога
      * катинок продуктов
      */
-    public static void deleteFile(String path){
+    public static void deleteFile(String path) {
         File file = new File(path);
-        if(file.exists()){
+        if (file.exists()) {
             file.delete();
         }
     }
@@ -273,6 +355,14 @@ public class FilesManager {
      */
     public static boolean isMediaDocument(Uri uri) {
         return "com.android.providers.media.documents".equals(uri.getAuthority());
+    }
+
+    public interface GetPathCallback {
+        void onSuccess(String path);
+
+        void onOutOfMemoryError();
+
+        void onError(String error);
     }
 
 }
