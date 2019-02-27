@@ -412,7 +412,7 @@ public class Photos {
             }
 
             @Override
-            public void onPermissionDenied(ArrayList<String> deniedPermissions) {
+            public void onPermissionDenied(List<String> deniedPermissions) {
 
             }
         };
