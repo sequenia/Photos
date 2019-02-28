@@ -14,10 +14,6 @@ android {
         versionName versions.versionName
     }
     buildTypes {
-        debug {
-            versionNameSuffix '-debug'
-        }
-
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
