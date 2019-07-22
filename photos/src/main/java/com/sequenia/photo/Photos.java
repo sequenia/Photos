@@ -200,9 +200,7 @@ public class Photos {
             if (FilesManager.checkedFile(filePath)) {
                 returnResultFromCamera(filePath);
             } else {
-                if (photoWait != null) {
-                    photoWait.visibilityWait(true);
-                }
+                setPhotoWaitVisibility(true);
                 getPhotoPathAsync(0);
             }
         } else {
@@ -274,27 +272,27 @@ public class Photos {
         FilesManager.getPath(context, uri, new FilesManager.GetPathCallback() {
             @Override
             public void onSuccess(String path) {
+                setPhotoWaitVisibility(false);
                 if (resultFromGallery != null) {
                     resultFromGallery.getPathFromGallery(path);
                 }
-                setPhotoWaitVisibility(false);
             }
 
             @Override
             public void onOutOfMemoryError() {
+                setPhotoWaitVisibility(false);
                 if (errors != null) {
                     errors.errorSelectedPhotoFromGallery(
                             getText(R.string.take_photo_out_of_memory_error));
                 }
-                setPhotoWaitVisibility(false);
             }
 
             @Override
             public void onError(String error) {
+                setPhotoWaitVisibility(false);
                 if (errors != null) {
                     errors.errorSelectedPhotoFromGallery(error);
                 }
-                setPhotoWaitVisibility(false);
             }
         });
 
@@ -327,16 +325,12 @@ public class Photos {
             @Override
             public void run() {
                 if (FilesManager.checkedFile(filePath)) {
-                    if (photoWait != null) {
-                        photoWait.visibilityWait(false);
-                    }
+                    setPhotoWaitVisibility(false);
                     returnResultFromCamera(filePath);
                 } else {
                     if (tryCount >= 10) {
+                        setPhotoWaitVisibility(false);
                         if (errors != null) {
-                            if (photoWait != null) {
-                                photoWait.visibilityWait(false);
-                            }
                             getPathLastPhoto();
                         }
                     } else {
