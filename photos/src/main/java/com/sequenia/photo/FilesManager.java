@@ -144,9 +144,11 @@ public class FilesManager {
                 }
 
                 for (String contentUriPrefix : contentUriPrefixesToTry) {
-                    Uri contentUri = ContentUris.withAppendedId(Uri.parse(contentUriPrefix),
-                            Long.valueOf(id));
                     try {
+                        Uri contentUri = Uri.parse(contentUriPrefix)
+                                .buildUpon()
+                                .appendPath(id)
+                                .build();
                         String path = getDataColumn(context, contentUri,
                                 null, null);
                         if (path != null) {
